@@ -346,11 +346,11 @@ def test_overview_screen_for_leadership_and_admin_owner(client: Client) -> None:
     import_sample(client)
     page = client.as_user("sanjay").get("/overview")
     assert page.status_code == 200
-    assert "Revenue at risk" not in page.text and "All positions" in page.text and "DIT7AF" in page.text
+    assert "Revenue at risk" not in page.text and "Open positions" in page.text and "DIT7AF" in page.text
     assert client.as_user("sanjay").get("/").headers["location"] == "/overview"
     admin = client.as_user("kavya")
     assert admin.get("/").headers["location"] == "/demands"  # admin still lands on the demands
-    assert "All positions" in admin.get("/overview").text
+    assert "Open positions" in admin.get("/overview").text
     for who in ("farah", "priya"):
         assert client.as_user(who).get("/overview").status_code == 403
 

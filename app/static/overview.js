@@ -27,9 +27,12 @@
     draw();
   }
 
+  function isOpen(x) { return x.open; }
+
+  // The ring counts open positions only; joined and abandoned ones stay out of it (and out of its legend).
   function ring() {
-    var base = rowsFor(dim), total = base.length, sel = F[dim], R = 74, LEN = 2 * Math.PI * R, start = 0;
-    var keys = ORDER[dim].slice();
+    var base = rowsFor(dim).filter(isOpen), total = base.length, sel = F[dim], R = 74, LEN = 2 * Math.PI * R, start = 0;
+    var keys = (dim === 'stage' ? OV.ring_stages : ORDER[dim]).slice();
     base.forEach(function (x) { if (keys.indexOf(x[dim]) < 0) keys.push(x[dim]); });
     var items = keys.map(function (k, j) { return { k: k, n: base.filter(function (x) { return x[dim] === k; }).length, c: C[j] || '#8B877E' }; });
     var h = '<g transform="rotate(-90 100 100)" fill="none">';
@@ -39,14 +42,41 @@
       h += '<circle class="slice" data-key="' + dim + '" data-val="' + esc(it.k) + '" cx="100" cy="100" r="' + R + '" stroke="' + it.c + '" stroke-width="' + (sel === it.k ? 34 : 26) + '" opacity="' + (sel && sel !== it.k ? .35 : 1) + '" stroke-dasharray="' + vis.toFixed(2) + ' ' + (LEN - vis).toFixed(2) + '" stroke-dashoffset="' + (-start).toFixed(2) + '"><title>' + esc(it.k) + ': ' + it.n + '</title></circle>';
       start += len;
     });
-    var rows = rowsFor();
-    h += '</g><text x="100" y="97" text-anchor="middle" class="ov-total">' + rows.length + '</text>';
-    h += '<text x="100" y="116" text-anchor="middle" class="ov-unit">' + (rows.length < D.length ? 'of ' + D.length + ' positions' : 'positions') + '</text>';
+    h += '</g>' + sliceLabels(items, total, R);
+    var rows = rowsFor(), shown = rows.filter(isOpen).length, allOpen = D.filter(isOpen).length;
+    h += '<text x="100" y="97" text-anchor="middle" class="ov-total">' + shown + '</text>';
+    h += '<text x="100" y="116" text-anchor="middle" class="ov-unit">' + (shown < allOpen ? 'of ' + allOpen + ' open' : 'open positions') + '</text>';
     $('ov-ring').innerHTML = h;
     $('ov-legend').innerHTML = items.map(function (it) {
       return '<li data-key="' + dim + '" data-val="' + esc(it.k) + '" class="' + (sel === it.k ? 'on' : '') + (it.n ? '' : ' zero') + '"><span class="sw" style="background:' + it.c + '"></span><span>' + esc(it.k) + '</span><span class="num">' + it.n + '</span><span class="pct">' + (total ? Math.round(it.n / total * 100) : 0) + '%</span>' + (MEANS[it.k] ? '<span class="d">' + esc(MEANS[it.k]) + '</span>' : '') + '</li>';
     }).join('');
     return rows;
+  }
+
+  // Each slice's name, written along the ring inside its own colour. Text on the lower half runs the other
+  // way round so it never reads upside down; a name too long for its slice is left to the legend.
+  function sliceLabels(items, total, R) {
+    var FONT = 10, GAP = 6, a0 = 0, h = '';
+    function pt(a) { return (100 + R * Math.sin(a)).toFixed(2) + ' ' + (100 - R * Math.cos(a)).toFixed(2); }
+    items.forEach(function (it, j) {
+      if (!it.n) return;
+      var span = it.n / total * 2 * Math.PI, mid = a0 + span / 2, k = String(it.k);
+      a0 += span;
+      var need = k.length * FONT * (k === k.toUpperCase() ? 0.72 : 0.58) + GAP;
+      if (need > R * span - GAP) return;
+      var half = Math.min(span, 1.9 * Math.PI) / 2, s = mid - half, e = mid + half, big = half * 2 > Math.PI ? 1 : 0;
+      var down = Math.cos(mid) < 0, id = 'ov-lbl-' + j;
+      var d = down ? 'M' + pt(e) + ' A' + R + ' ' + R + ' 0 ' + big + ' 0 ' + pt(s) : 'M' + pt(s) + ' A' + R + ' ' + R + ' 0 ' + big + ' 1 ' + pt(e);
+      h += '<path id="' + id + '" d="' + d + '" fill="none"/><text class="ov-slice-label" fill="' + inkOn(it.c) + '" opacity="' + (F[dim] && F[dim] !== it.k ? .5 : 1) + '">'
+        + '<textPath href="#' + id + '" startOffset="50%" text-anchor="middle" dominant-baseline="central">' + esc(k) + '</textPath></text>';
+    });
+    return h;
+  }
+
+  // White on dark slices, near-black on light ones (the yellow, the pink).
+  function inkOn(hex) {
+    var n = parseInt(hex.slice(1), 16), r = n >> 16, g = (n >> 8) & 255, b = n & 255;
+    return (0.299 * r + 0.587 * g + 0.114 * b) > 160 ? '#1d1b17' : '#fff';
   }
 
   function bars(key) {
@@ -123,14 +153,36 @@
     var title = ks.map(function (k) { return NAME[k].toLowerCase() + ': ' + F[k]; }).join(' · ');
     if (F.costing) { costList(rows, title); return; }
     var h = '<div class="ov-listhead"><h2>' + rows.length + ' demand' + (rows.length === 1 ? '' : 's') + ' <span class="small muted">· ' + esc(title) + '</span></h2><span class="small muted">These are the demands behind the numbers above.</span></div>';
-    h += '<div class="ov-scroll"><table class="ov-table"><thead><tr><th>App ref</th><th>Demand</th><th>Owner · BU</th><th>Practice</th><th>Stage</th><th>Start</th><th>Joining</th><th class="r">Revenue lost</th><th></th></tr></thead><tbody>';
+    // A table on wide screens; on phones app.css lays each row out as a card (.ov-cards), so the cell
+    // classes name where each piece goes, and .m-only / .d-only hold the bits that move between the two.
+    h += '<div class="ov-scroll"><table class="ov-table ov-cards"><thead><tr><th>App ref</th><th>Demand</th><th>Owner · BU</th><th>Practice</th><th>Stage</th><th>Start</th><th>Joining</th><th class="r">Revenue lost</th><th></th></tr></thead><tbody>';
     h += rows.map(function (x) {
       var on = openRef === x.ref;
-      return '<tr><td><a class="mono" href="/demands/' + esc(x.ref) + '">' + esc(x.req || x.ref) + '</a></td><td>' + esc(x.name) + '<div class="small muted">' + esc(x.type) + '</div></td><td>' + esc(x.owner) + '<div class="small muted">' + esc(x.bu) + '</div></td><td>' + esc(x.practice) + '</td><td>' + esc(x.stage) + '<div class="small muted">' + esc(x.sub) + '</div>' + x.esc.map(function (e) { return '<div class="small late">⚠ ' + esc(e.t) + ' · L' + e.l + '</div>'; }).join('') + '</td><td class="' + (x.late ? 'late' : '') + '">' + esc(x.start || '—') + (x.late ? '<div class="small late">' + x.days_late + ' days late</div>' : '') + '</td><td>' + esc(x.joining || 'Not set') + '</td><td class="r">' + (x.lost ? money(x.lost) : '—') + '</td><td><a href="#" class="wf-link" data-flow="' + esc(x.ref) + '">' + (on ? 'Hide workflow' : 'Show workflow') + '</a></td></tr>'
+      return '<tr><td class="c-ref"><a class="mono" href="/demands/' + esc(x.ref) + '">' + esc(x.req || x.ref) + '</a></td>'
+        + '<td class="c-name">' + esc(x.name) + '<div class="small muted d-only">' + esc(x.type) + '</div></td>'
+        + '<td class="c-owner">' + esc(x.owner) + '<div class="small muted">' + esc(x.bu) + '<span class="m-only"> · ' + esc(x.type) + '</span></div>' + callLink(x) + '</td>'
+        + '<td class="c-prac">' + esc(x.practice) + '</td>'
+        + '<td class="c-stage">' + esc(x.stage) + '<div class="small muted">' + esc(x.sub) + '</div>' + x.esc.map(function (e) { return '<div class="small late">⚠ ' + esc(e.t) + ' · L' + e.l + '</div>'; }).join('') + '</td>'
+        + '<td class="c-start ' + (x.late ? 'late' : '') + '"><span class="m-only">Start </span>' + esc(x.start || '—') + (x.late ? '<div class="small late">' + x.days_late + ' days late</div>' : '') + '</td>'
+        + '<td class="c-join"><span class="m-only">Joining </span>' + esc(x.joining || 'Not set') + '</td>'
+        + '<td class="c-lost r"><span class="m-only">Lost </span>' + (x.lost ? money(x.lost) : '—') + '</td>'
+        + '<td class="c-wf"><a href="#" class="wf-link" data-flow="' + esc(x.ref) + '">' + (on ? 'Hide workflow' : 'Show workflow') + '</a></td></tr>'
         + (on ? '<tr class="wfrow"><td colspan="9"><div class="small" style="margin-bottom:8px"><strong>' + esc(x.ref) + ' · ' + esc(x.name) + '</strong> is now at <strong>' + esc(x.stage) + ' · ' + esc(x.sub) + '</strong></div><div class="wf-wrap">' + wfDiagram(L, { current: { stage: x.stage, sub: x.sub }, escalations: x.esc }) + '</div></td></tr>' : '');
     }).join('');
     if (!rows.length) h += '<tr><td colspan="9" class="small muted">No demands match. Remove a tag above.</td></tr>';
     $('ov-list').innerHTML = h + '</tbody></table></div>';
+  }
+
+  // A tel: link: on a phone it opens the dialler with the owner's number filled in, ready to call.
+  var PHONE_ICON = '<svg viewBox="0 0 24 24" width="14" height="14" aria-hidden="true"><path fill="currentColor" d="M6.6 10.8a15.1 15.1 0 0 0 6.6 6.6l2.2-2.2a1 1 0 0 1 1-.25 11.4 11.4 0 0 0 3.6.57 1 1 0 0 1 1 1V20a1 1 0 0 1-1 1A17 17 0 0 1 3 4a1 1 0 0 1 1-1h3.5a1 1 0 0 1 1 1c0 1.25.2 2.45.57 3.57a1 1 0 0 1-.25 1z"/></svg>';
+  function shownPhone(p) {
+    var m = /^\+1(\d{3})(\d{3})(\d{4})$/.exec(p);
+    return m ? '(' + m[1] + ') ' + m[2] + '-' + m[3] : p;
+  }
+  function callLink(x) {
+    if (!x.owner_phone) return '';
+    return '<a class="ov-call" href="tel:' + esc(x.owner_phone) + '" aria-label="Call ' + esc(x.owner) + ' on ' + esc(shownPhone(x.owner_phone)) + '">'
+      + PHONE_ICON + '<span>Call</span><span class="num">' + esc(shownPhone(x.owner_phone)) + '</span></a>';
   }
 
   function flow() {

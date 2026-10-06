@@ -81,7 +81,8 @@ USERS = [
     ("kavya", "Kavya R.", "kavya.r@example.com", "admin", "D2", "full", BUSINESS_UNITS, [], None),
     ("farah", "Farah Q.", "farah.q@example.com", "admin_team", "B2", "full", BUSINESS_UNITS, [], None),
     ("deepak", "Deepak L.", "deepak.l@example.com", "admin_team", "C1", "full", BUSINESS_UNITS, [], None),
-    ("sanjay", "Sanjay M.", "sanjay.m@example.com", "leadership", "E1", "full", BUSINESS_UNITS, [], None),
+    # Leadership is split by BU: Sanjay has PAYMENTS and DATA here (and all of Acme), Rakesh the rest.
+    ("sanjay", "Sanjay M.", "sanjay.m@example.com", "leadership", "E1", "bu_read", ["PAYMENTS", "DATA"], [], None),
     (
         "vikram",
         "Vikram P.",
@@ -106,7 +107,18 @@ USERS = [
     ),
     # Runs the app's controls on request; sees no demands. Adds and deactivates client accounts.
     ("anil", "Anil V.", "anil.v@example.com", "administrator", "E1", "app_controls", [], [], None),
+    # Last, so everyone above keeps their id.
+    ("rakesh", "Rakesh S.", "rakesh.s@example.com", "leadership", "E1", "bu_read", ["CARDS", "BANKING"], [], None),
 ]
+
+# Demand owners' cell numbers: 555-01xx, the range kept for fiction, so nobody real gets a call.
+PHONES = {
+    "priya": "+13125550101",
+    "rahul": "+13125550102",
+    "neha": "+13125550103",
+    "meera": "+13125550104",
+    "arjun": "+13125550105",
+}
 
 J, S, A = "Java", "Spring Boot", "AWS"
 

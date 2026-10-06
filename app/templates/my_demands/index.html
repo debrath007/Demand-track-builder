@@ -28,23 +28,22 @@
         <a class="pill {{ 'on' if key == active_filter }}" href="?filter={{ key }}{% if active_bu %}&bu={{ active_bu }}{% endif %}{% if period.start %}&start={{ period.start }}{% endif %}{% if period.end %}&end={{ period.end }}{% endif %}" {% if key == active_filter %}aria-current="true"{% endif %}>{{ label }} ({{ counts[key] }})</a>
       {% endfor %}
     </div>
+    {% with period=period, keep={'filter': active_filter, 'bu': active_bu} %}{% include "_period.html" %}{% endwith %}
+    {% if bus %}
     <form method="get" class="row" style="gap:10px;flex-wrap:wrap">
       <input type="hidden" name="filter" value="{{ active_filter }}">
-      <label class="row small muted">From <input type="date" name="start" value="{{ period.start or '' }}" style="width:auto;min-height:40px"></label>
-      <label class="row small muted">To <input type="date" name="end" value="{{ period.end or '' }}" style="width:auto;min-height:40px"></label>
-      <button class="btn small">Show</button>
-      {% if period.chosen %}<a class="small" href="?filter={{ active_filter }}{% if active_bu %}&bu={{ active_bu }}{% endif %}">Clear dates</a>{% endif %}
-      {% if bus %}
+      {% if period.start %}<input type="hidden" name="start" value="{{ period.start }}">{% endif %}
+      {% if period.end %}<input type="hidden" name="end" value="{{ period.end }}">{% endif %}
       <label class="row small muted">Business unit
         <select name="bu" onchange="this.form.submit()" style="width:auto;min-height:40px">
           <option value="">All</option>
           {% for b in bus %}<option value="{{ b.id }}" {{ 'selected' if active_bu == b.id }}>{{ b.name }}</option>{% endfor %}
         </select>
       </label>
-      {% endif %}
     </form>
+    {% endif %}
   </div>
-  <div class="small muted" style="padding:0 18px 10px">{{ period.label }}.{% if not period.chosen %} Older finished demands are under Archived; pick dates to see any period.{% endif %}</div>
+  <div class="small muted" style="padding:0 18px 10px">{{ period.label }}.{% if not period.chosen %} Older finished demands are under Archived; choose a period to see them.{% endif %}</div>
   <div class="tbl demands {{ 'with-owner' if show_owner }}" role="table" aria-label="{{ title }}">
     <div class="tr th" role="row">
       <div>App ref</div><div>GTD req</div><div>Demand</div>{% if show_owner %}<div>Owner · BU</div>{% endif %}<div>Practice</div><div>Grade</div><div>Start · joining</div><div>Stage</div>

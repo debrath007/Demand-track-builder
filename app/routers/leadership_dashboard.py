@@ -22,13 +22,13 @@ router = APIRouter(tags=["leadership"])
 guard = require_screen("overview")
 
 
-def _open_escalations(db: Session, account_id: int) -> dict[int, int]:
-    rows = db.execute(
-        select(Escalation.level, func.count())
-        .where(Escalation.account_id == account_id, Escalation.status == EscalationStatus.OPEN.value)
-        .group_by(Escalation.level)
-    ).all()
-    return {level: n for level, n in rows}
+def _open_escalations(db: Session, account_id: int, bu_ids: frozenset[int] | None = None) -> dict[int, int]:
+    stmt = select(Escalation.level, func.count()).where(
+        Escalation.account_id == account_id, Escalation.status == EscalationStatus.OPEN.value
+    )
+    if bu_ids is not None:  # leadership over chosen BUs: their demands' escalations only
+        stmt = stmt.join(Demand, Demand.id == Escalation.demand_id).where(Demand.bu_id.in_(bu_ids))
+    return {level: n for level, n in db.execute(stmt.group_by(Escalation.level)).all()}
 
 
 @router.get("/overview", response_class=HTMLResponse)
@@ -40,10 +40,11 @@ def overview_page(
     db: Session = Depends(get_db),
 ) -> HTMLResponse:
     today = account_today(db, actor.account_id)
-    o = loss_service.overview(db, actor.account_id, today, period_for(db, actor.account_id, start, end))
+    period = period_for(db, actor.account_id, start, end)
+    o = loss_service.overview(db, actor.account_id, today, period, actor.bu_limit)
     # Offers this viewer decides: below the cut-off for leadership, at or above for the GTD team admin.
     route = "leadership" if actor.role is Role.LEADERSHIP else "admin"
-    waiting = db.scalar(
+    waiting_stmt = (
         select(func.count())
         .select_from(OfferApproval)
         .join(Demand)
@@ -53,6 +54,9 @@ def overview_page(
             OfferApproval.route == route,
         )
     )
+    if actor.bu_limit is not None:
+        waiting_stmt = waiting_stmt.where(Demand.bu_id.in_(actor.bu_limit))
+    waiting = db.scalar(waiting_stmt)
     return render(
         request,
         "leadership_dashboard/index.html",
@@ -60,12 +64,29 @@ def overview_page(
         db,
         o=o,
         latest=reconcile_service.latest_import(db, actor.account_id),
-        escalations=_open_escalations(db, actor.account_id),
+        escalations=_open_escalations(db, actor.account_id, actor.bu_limit),
         offers_waiting=waiting or 0,
         nb=loss_service.non_billable_by_bu(db, actor.account_id),
         ov=_page_data(db, o),
         sets_caps=actor.role is Role.ADMIN,
     )
+
+
+# Where the overview names a stage differently from the rest of the app.
+SHOWN_AS = {MainStage.ALLOC_PENDING: "Client onboarding pending"}
+
+
+def _shown(stage: MainStage) -> str:
+    return SHOWN_AS.get(stage, stage.label)
+
+
+def _overview_layout() -> dict[str, Any]:
+    """The workflow boxes under the overview's stage names, so a click there still matches the ring."""
+    rename = {m.label: _shown(m) for m in MainStage}
+    lay = workflow_service.layout()
+    for st in [*lay["stages"], lay["abandoned"]]:
+        st["label"] = rename.get(st["label"], st["label"])
+    return lay
 
 
 # What each main stage means, in plain words, under its name on the overview.
@@ -105,10 +126,11 @@ def _page_data(db: Session, o: loss_service.Overview) -> dict[str, Any]:
                 "ref": d.app_ref,
                 "req": d.gtd_req_id,
                 "name": d.name,
-                "stage": d.status_enum.main.label,
+                "stage": _shown(d.status_enum.main),
                 "sub": d.status_enum.label,
                 "bu": d.business_unit.name,
                 "owner": d.owner.name,
+                "owner_phone": d.owner.phone,
                 "practice": d.practice or "—",
                 "type": f"{kind} · {'non-billable' if d.position_type == 'Non-billable' else 'billable'}",
                 "start": f"{d.start_date:%d %b %Y}" if d.start_date else None,
@@ -136,13 +158,15 @@ def _page_data(db: Session, o: loss_service.Overview) -> dict[str, Any]:
     return {
         "rows": rows,
         "order": {
-            "stage": [m.label for m in MainStage],
+            "stage": [_shown(m) for m in MainStage],
             "bu": sorted({r["bu"] for r in rows}),
             "type": list(loss_service.MIX),
             "practice": list(account.settings.practices) if account else [],
         },
-        "means": {m.label: text for m, text in MEANS.items()},
-        "layout": workflow_service.layout(),
+        # The ring shows open positions only: joined and abandoned ones aren't counted in it.
+        "ring_stages": [_shown(MainStage(v)) for v in loss_service.OPEN_GROUPS],
+        "means": {_shown(m): text for m, text in MEANS.items()},
+        "layout": _overview_layout(),
         "hours": f"{o.hours_per_day:g}",
         "month_days": costing_service.MONTH_DAYS,
         "caps": {
@@ -173,7 +197,7 @@ async def save_nb_caps(
 
 @router.get("/api/overview")
 def overview_json(actor: Actor = Depends(guard), db: Session = Depends(get_db)) -> dict[str, Any]:
-    o = loss_service.overview(db, actor.account_id, account_today(db, actor.account_id))
+    o = loss_service.overview(db, actor.account_id, account_today(db, actor.account_id), None, actor.bu_limit)
     return {
         "as_of": o.today,
         "open": o.open,

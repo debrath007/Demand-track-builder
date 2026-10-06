@@ -37,6 +37,7 @@ class Scope(StrEnum):
     OWN = "own"
     OWN_BU_READ = "own_bu_read"
     FULL = "full"
+    BU_READ = "bu_read"  # leadership over some business units only
     ASSIGNED_INTERVIEWS = "assigned_interviews"
     APP_CONTROLS = "app_controls"
 
@@ -53,6 +54,7 @@ SCOPE_LABELS = {
     Scope.OWN: ("Own demands", "Only demands they raised"),
     Scope.OWN_BU_READ: ("Own + BU read-only", "Can view other demands in their BU(s)"),
     Scope.FULL: ("Full account", "All BUs, all demands"),
+    Scope.BU_READ: ("Chosen BUs", "Only the demands, escalations and offers of their business units"),
     Scope.ASSIGNED_INTERVIEWS: ("Assigned interviews", "Plus alerts for new requisitions in their skills"),
     Scope.APP_CONTROLS: ("App controls", "Settings, access and rate card; no demands"),
 }
@@ -63,7 +65,7 @@ ALLOWED_SCOPES: dict[Role, tuple[Scope, ...]] = {
     Role.DEMAND_OWNER: (Scope.OWN, Scope.OWN_BU_READ),
     Role.ADMIN: (Scope.FULL,),
     Role.ADMIN_TEAM: (Scope.FULL,),
-    Role.LEADERSHIP: (Scope.FULL,),
+    Role.LEADERSHIP: (Scope.FULL, Scope.BU_READ),
     Role.INTERVIEWER: (Scope.ASSIGNED_INTERVIEWS,),
     Role.ADMINISTRATOR: (Scope.APP_CONTROLS,),
 }

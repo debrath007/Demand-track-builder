@@ -51,6 +51,11 @@ class Actor:
         return self.scope is Scope.FULL
 
     @property
+    def bu_limit(self) -> frozenset[int] | None:
+        """For leadership over chosen BUs: those BUs, on every account-wide screen. Otherwise None."""
+        return self.bu_ids if self.scope is Scope.BU_READ else None
+
+    @property
     def can_see_bill_rate(self) -> bool:
         """Rates across the whole account: the GTD team admin and leadership. See `sees_rates`."""
         return self.role in (Role.ADMIN, Role.LEADERSHIP)

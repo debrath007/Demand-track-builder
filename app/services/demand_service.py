@@ -37,6 +37,8 @@ def visible_demands(actor: Actor) -> Select[tuple[Demand]]:
             return stmt.where(Demand.owner_id == actor.id)
         case Scope.OWN_BU_READ:
             return stmt.where(or_(Demand.owner_id == actor.id, Demand.bu_id.in_(actor.bu_ids)))
+        case Scope.BU_READ:
+            return stmt.where(Demand.bu_id.in_(actor.bu_ids))
         case Scope.ASSIGNED_INTERVIEWS:
             assigned = select(Interview.demand_id).where(Interview.interviewer_id == actor.id)
             return stmt.where(Demand.id.in_(assigned))
@@ -90,6 +92,27 @@ class Period:
         if self.end is not None and created > self.end:
             return False
         return not (self.start is not None and finished is not None and finished < self.start)
+
+    @property
+    def presets(self) -> list[tuple[str, str, date | None]]:
+        """Quick picks above the date fields: (key, label, start). A start alone runs to today."""
+        quarter = date(self.today.year, 3 * ((self.today.month - 1) // 3) + 1, 1)
+        return [
+            ("recent", f"Last {self.keep_days} days", None),
+            ("quarter", "This quarter", quarter),
+            ("year", "This year", date(self.today.year, 1, 1)),
+        ]
+
+    @property
+    def preset(self) -> str:
+        """Which quick pick is showing, or "custom" for any other dates."""
+        if not self.chosen:
+            return "recent"
+        if self.end is None:
+            for key, _, start in self.presets[1:]:
+                if self.start == start:
+                    return key
+        return "custom"
 
     @property
     def label(self) -> str:

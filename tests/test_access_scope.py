@@ -41,10 +41,18 @@ def test_bu_read_only_sees_colleagues_but_cannot_edit(client: Client) -> None:
 
 
 def test_full_account_roles_see_everything(client: Client) -> None:
-    for who in ("kavya", "farah", "sanjay"):
+    for who in ("kavya", "farah"):
         seen = refs(client.as_user(who))
         assert len(seen) == 18, who
         assert {d["business_unit"] for d in seen.values()} == {"CARDS", "BANKING", "PAYMENTS", "DATA"}
+
+
+def test_leadership_sees_only_their_business_units(client: Client) -> None:
+    sanjay = refs(client.as_user("sanjay"))
+    assert {d["business_unit"] for d in sanjay.values()} == {"PAYMENTS", "DATA"}
+    rakesh = refs(client.as_user("rakesh"))
+    assert {d["business_unit"] for d in rakesh.values()} == {"CARDS", "BANKING"}
+    assert len(sanjay) + len(rakesh) == 18
 
 
 def test_owners_see_the_bill_rate_on_their_own_demands_only(client: Client) -> None:

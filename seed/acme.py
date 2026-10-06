@@ -78,6 +78,9 @@ DELIVERY_HEADS = {
     "DIGITAL": ("Ines M.", "ines.m@example.com"),
 }
 
+# Demand owners' cell numbers (555-01xx, kept for fiction).
+PHONES = {"lena": "+14155550111", "marco": "+14155550112"}
+
 # key, name, email, role, level, scope, BUs, practices, interviewer (skills, max grade).
 # "sanjay" already exists (Discover): he gets a second membership, not a second login. Interviewers
 # belong to one account only, so Acme has its own (Nadia).

@@ -69,7 +69,7 @@ def demands_page(
     )
     if not actor.is_full:
         bus_stmt = bus_stmt.where(BusinessUnit.id.in_(actor.bu_ids))
-    bus = list(db.scalars(bus_stmt)) if actor.scope in (Scope.FULL, Scope.OWN_BU_READ) else []
+    bus = list(db.scalars(bus_stmt)) if actor.scope in (Scope.FULL, Scope.BU_READ, Scope.OWN_BU_READ) else []
     if len(bus) < 2:
         bus = []
     return render(
@@ -86,7 +86,7 @@ def demands_page(
         active_bu=bu,
         stats=summary(all_rows),
         my_loss=_my_loss(db, actor),
-        title="My demands" if actor.scope is not Scope.FULL else "All demands",
+        title="All demands" if actor.scope in (Scope.FULL, Scope.BU_READ) else "My demands",
     )
 
 

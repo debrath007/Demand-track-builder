@@ -13,7 +13,7 @@ def main() -> None:
     with new_session() as db:
         load(db)
     print(
-        "Seeded Discover NA: 4 BUs, 12 users, 18 demands, 6 open escalations, 2 interviews,"
+        "Seeded Discover NA: 4 BUs, 13 users, 18 demands, 6 open escalations, 2 interviews,"
         " 64 rate card rows."
     )
     print(

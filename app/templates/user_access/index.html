@@ -57,7 +57,7 @@
         <div class="title">Interviewer</div><div>Only interviews assigned to them, plus alerts for new requisitions in their skills.</div>
         <div class="title">GTD team admin</div><div>Full account, all BUs. Fixed.</div>
         <div class="title">GTD admin team</div><div>Full account, all BUs. Fixed. Does the manual admin work: GTD entry, BCM sheet upload, reconciliation.</div>
-        <div class="title">Leadership</div><div>Full account, all BUs. Fixed.</div>
+        <div class="title">Leadership</div><div>Full account, all BUs; or chosen BUs only: their demands, escalations and offer approvals, and only their mails.</div>
       </div>
     </section>
   </div>
@@ -90,7 +90,7 @@
             <label><input type="checkbox" name="bu_ids" value="{{ b.id }}" {{ 'checked' if b.id in v.bu_ids }}><span>{{ b.name }}</span></label>
           {% endfor %}
         </div>
-        <div class="hint" id="bu-locked" hidden>Every BU. Fixed for this role.</div>
+        <div class="hint" id="bu-locked" hidden>Every BU, with full-account visibility.</div>
         <div class="hint" id="bu-single" hidden>Exactly one for a demand owner.</div>
       </fieldset>
 
@@ -158,7 +158,8 @@
       document.querySelector('.scope-opt[data-scope="' + ok[0] + '"] input').checked = true;
     }
     document.getElementById('scope-locked').hidden = !locked;
-    var full = ok.length === 1 && ok[0] === 'full';
+    var picked = document.querySelector('.scope-opt:not(.hidden) input:checked');
+    var full = !!picked && picked.value === 'full';  // full account: every BU, fixed
     document.querySelectorAll('#bu-chips input').forEach(function (i) { if (full) i.checked = true; i.disabled = full; });
     document.getElementById('bu-locked').hidden = !full;
     var single = role.value === 'demand_owner';
@@ -170,6 +171,7 @@
     document.getElementById('iv-fields').hidden = role.value !== 'interviewer';
   }
   role.addEventListener('change', sync);
+  document.querySelectorAll('.scope-opt input').forEach(function (i) { i.addEventListener('change', sync); });
   // A demand owner has exactly one BU: ticking one clears the others.
   document.querySelectorAll('#bu-chips input').forEach(function (i) {
     i.addEventListener('change', function () {

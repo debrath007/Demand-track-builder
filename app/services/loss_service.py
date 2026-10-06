@@ -127,18 +127,26 @@ class Overview:
     archived: int  # finished demands left out because they are older than the period shows
 
 
-def overview(db: Session, account_id: int, today: date, period: Period | None = None) -> Overview:
+def overview(
+    db: Session,
+    account_id: int,
+    today: date,
+    period: Period | None = None,
+    bu_ids: frozenset[int] | None = None,
+) -> Overview:
     """The account's picture. Without dates: open demands and those finished within the archive window.
-    With dates: demands that were live at some point in the period."""
+    With dates: demands that were live at some point in the period. `bu_ids` narrows it to those
+    business units (leadership over chosen BUs); everything below follows from that one query."""
     account = db.get_one(Account, account_id)
     period = period or Period(today, account.settings.archive_after_days)
-    everything = list(
-        db.scalars(
-            select(Demand)
-            .where(Demand.account_id == account_id, Demand.status != DemandStatus.DRAFT.value)
-            .options(selectinload(Demand.business_unit), selectinload(Demand.owner))
-        )
+    stmt = (
+        select(Demand)
+        .where(Demand.account_id == account_id, Demand.status != DemandStatus.DRAFT.value)
+        .options(selectinload(Demand.business_unit), selectinload(Demand.owner))
     )
+    if bu_ids is not None:
+        stmt = stmt.where(Demand.bu_id.in_(bu_ids))
+    everything = list(db.scalars(stmt))
     finished = finished_dates(db, everything)
     demands = [d for d in everything if period.shows(d.created_at.date(), finished.get(d.id))]
     shown = {d.id for d in demands}

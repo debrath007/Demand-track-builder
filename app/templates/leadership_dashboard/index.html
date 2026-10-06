@@ -3,19 +3,16 @@
 {% block main %}
 <div class="head">
   <div>
-    <div class="eyebrow">{{ actor.role.label }} · {{ actor.account_name }} · all BUs</div>
+    <div class="eyebrow">{{ actor.role.label }} · {{ actor.account_name }} · {{ 'all BUs' if actor.bu_limit is none else actor.bu_names | join(', ') }}</div>
     <h1>Account overview</h1>
   </div>
   <div class="small muted">{% if latest %}BCM sheet of {{ latest.sheet_date | d }} · {% endif %}as of {{ o.today | d }}</div>
 </div>
 
-<form method="get" class="panel panel-body row" style="gap:10px;flex-wrap:wrap;align-items:center">
-  <div style="flex:1 1 260px"><strong>{{ o.period.label }}</strong>{% if o.archived %}<div class="small muted">{{ o.archived }} older finished demand{{ 's' if o.archived != 1 }} not shown; pick dates to include them.</div>{% endif %}</div>
-  <label class="row small muted">From <input type="date" name="start" value="{{ o.period.start or '' }}" style="width:auto;min-height:40px"></label>
-  <label class="row small muted">To <input type="date" name="end" value="{{ o.period.end or '' }}" style="width:auto;min-height:40px"></label>
-  <button class="btn small primary">Show period</button>
-  {% if o.period.chosen %}<a class="small" href="/overview">Clear dates</a>{% endif %}
-</form>
+{% with period=o.period, keep={} %}{% include "_period.html" %}{% endwith %}
+{% if o.period.chosen or o.archived %}
+<div class="small muted">{% if o.period.chosen %}{{ o.period.label }}.{% endif %}{% if o.archived %} {{ o.archived }} older finished demand{{ 's' if o.archived != 1 }} not shown; choose a period to include them.{% endif %}</div>
+{% endif %}
 
 {% if escalations or offers_waiting %}
 <div class="row small">
@@ -25,16 +22,11 @@
 {% endif %}
 
 <div id="ov" class="ov">
-  <div class="ov-how">
-    <div><b>1</b> The ring shows every position as a share. <a href="#" id="ov-flowlink" class="wf-link">Show workflow</a> shows the same positions on the process.</div>
-    <div><b>2</b> Click a slice, or a box in the workflow, to look only at that part.</div>
-    <div><b>3</b> Keep clicking on the right to narrow further. The numbers and the list of demands follow every click.</div>
-  </div>
   <section class="panel panel-body" id="ov-flow" hidden></section>
   <div class="ov-main">
     <section class="panel panel-body">
       <div class="ov-ringhead">
-        <div><h2>All positions</h2><div class="hint">Each slice is a share of the positions</div></div>
+        <div><h2>Open positions</h2><div class="hint">Each slice is a share of the open positions ·<a href="#" id="ov-flowlink" class="wf-link">Show workflow</a></div></div>
         <div class="ov-tabs" id="ov-tabs" role="group" aria-label="Split the ring by">
           <button type="button" data-d="stage" class="on">By stage</button><button type="button" data-d="bu">By business unit</button>
         </div>

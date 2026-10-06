@@ -1,0 +1,19 @@
+{# Period picker: the quick picks in one row, your own dates behind "Custom".
+   Needs `period` (demand_service.Period) and `keep`: other query parameters to carry along. #}
+{% set ns = namespace(q='') %}
+{% for k, v in keep.items() if v %}{% set ns.q = ns.q ~ k ~ '=' ~ (v | urlencode) ~ '&' %}{% endfor %}
+<div class="period">
+  <input type="checkbox" id="period-custom" class="pc-toggle" hidden {{ 'checked' if period.preset == 'custom' }}>
+  <div class="pchips" role="group" aria-label="Period">
+    {% for key, label, start in period.presets %}
+    <a class="pchip {{ 'on' if period.preset == key }}" href="?{{ ns.q ~ 'start=' ~ start if start else ns.q[:-1] }}" {% if period.preset == key %}aria-current="true"{% endif %}>{{ label }}</a>
+    {% endfor %}
+    <label class="pchip {{ 'on' if period.preset == 'custom' }}" for="period-custom">Custom</label>
+  </div>
+  <form method="get" class="pform">
+    {% for k, v in keep.items() if v %}<input type="hidden" name="{{ k }}" value="{{ v }}">{% endfor %}
+    <input type="date" name="start" value="{{ period.start or '' }}" aria-label="From">
+    <input type="date" name="end" value="{{ period.end or '' }}" aria-label="To">
+    <button class="btn small primary">Go</button>
+  </form>
+</div>

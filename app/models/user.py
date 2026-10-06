@@ -1,6 +1,6 @@
 from datetime import datetime
 
-from sqlalchemy import Boolean, CheckConstraint, ColumnElement, ForeignKey, Index, String, and_, func, select
+from sqlalchemy import Boolean, CheckConstraint, ColumnElement, ForeignKey, Index, String, and_, func, or_, select
 from sqlalchemy.dialects.postgresql import ARRAY
 from sqlalchemy.orm import Mapped, mapped_column, relationship
 
@@ -18,6 +18,7 @@ class User(Base):
     id: Mapped[int] = mapped_column(primary_key=True)
     email: Mapped[str] = mapped_column(String(254))
     name: Mapped[str] = mapped_column(String(120))
+    phone: Mapped[str | None] = mapped_column(String(20))  # cell, E.164 (+13125550101)
     # False blocks sign-in everywhere. Access to one account is UserAccount.active.
     active: Mapped[bool] = mapped_column(Boolean, default=True)
     created_by: Mapped[int | None] = mapped_column(ForeignKey("users.id"))
@@ -60,7 +61,8 @@ class UserAccount(Base):
         CheckConstraint(check_in("visibility_scope", Scope), name="scope_valid"),
         # The access rule itself, enforced by the database (mirrors enums.ALLOWED_SCOPES).
         CheckConstraint(
-            "(role IN ('admin', 'admin_team', 'leadership') AND visibility_scope = 'full')"
+            "(role IN ('admin', 'admin_team') AND visibility_scope = 'full')"
+            " OR (role = 'leadership' AND visibility_scope IN ('full', 'bu_read'))"
             " OR (role = 'interviewer' AND visibility_scope = 'assigned_interviews')"
             " OR (role = 'demand_owner' AND visibility_scope IN ('own', 'own_bu_read'))"
             " OR (role = 'administrator' AND visibility_scope = 'app_controls')",
@@ -96,6 +98,24 @@ def member_of(account_id: int, *roles: Role, active: bool = True) -> ColumnEleme
         sub = sub.where(UserAccount.active)
         return and_(User.active, User.id.in_(sub))
     return User.id.in_(sub)
+
+
+def leads_bu(account_id: int, bu_id: int | None) -> ColumnElement[bool]:
+    """Filter for select(User): the account's active leadership who cover this BU, i.e. the whole
+    account, or chosen BUs that include it. With no BU (e.g. a BCM sheet row): full-account ones only."""
+    lead = select(UserAccount.user_id).where(
+        UserAccount.account_id == account_id,
+        UserAccount.role == Role.LEADERSHIP.value,
+        UserAccount.active,
+    )
+    full = lead.where(UserAccount.visibility_scope == Scope.FULL.value)
+    if bu_id is None:
+        return and_(User.active, User.id.in_(full))
+    covering = lead.where(
+        UserAccount.visibility_scope == Scope.BU_READ.value,
+        UserAccount.user_id.in_(select(UserBusinessUnit.user_id).where(UserBusinessUnit.bu_id == bu_id)),
+    )
+    return and_(User.active, or_(User.id.in_(full), User.id.in_(covering)))
 
 
 class UserBusinessUnit(Base):

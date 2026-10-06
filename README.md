@@ -81,7 +81,8 @@ tests/
 | Demand owner | Neha T., Meera S., Arjun D. | Own demands |
 | GTD team admin | Kavya R. | Full account; asks the Administrator for control changes |
 | GTD admin team | Farah Q., Deepak L. | Full account; GTD queue, BCM sheet import, reconciliation, escalations |
-| Leadership | Sanjay M. | Full account, read-only |
+| Leadership | Sanjay M. | PAYMENTS and DATA only, read-only (all of Acme) |
+| Leadership | Rakesh S. | CARDS and BANKING only, read-only |
 | Interviewer | Vikram P., Anita G. | Demands with interviews assigned to them |
 | Administrator | Anil V. | App controls only: User access, Account settings, Rate card, Accounts. No demands |
 

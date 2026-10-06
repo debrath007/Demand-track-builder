@@ -51,7 +51,10 @@ def escalations_page(
     level = _int(q.get("level"))
     type_ = q.get("type") if q.get("type") in {t.value for t in EscalationType} else None
     mine = actor.id if actor.role is Role.DEMAND_OWNER else None  # owners: their own demands only
-    items = svc.listing(db, actor.account_id, status=status, level=level, type_=type_, owner_id=mine)
+    bus = actor.bu_limit
+    items = svc.listing(
+        db, actor.account_id, status=status, level=level, type_=type_, owner_id=mine, bu_ids=bus
+    )
     account = db.get_one(Account, actor.account_id)
     now = datetime.now(UTC)
 
@@ -61,7 +64,7 @@ def escalations_page(
         pool = (
             items
             if any(e.id == sel_id for e, _ in items)
-            else svc.listing(db, actor.account_id, status="all", owner_id=mine)
+            else svc.listing(db, actor.account_id, status="all", owner_id=mine, bu_ids=bus)
         )
         selected = next(((e, d) for e, d in pool if e.id == sel_id), None)
 

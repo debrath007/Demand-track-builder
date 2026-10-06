@@ -23,7 +23,7 @@ from app.core.account_config import AccountConfig
 from app.core.config import get_settings
 from app.core.enums import FINISHED, PROGRESS_ORDER, ApprovalRoute, Decision, DemandStatus, Role, StageOrigin
 from app.core.security import Actor
-from app.models import Account, Candidate, Demand, OfferApproval, User, member_of
+from app.models import Account, Candidate, Demand, OfferApproval, User, leads_bu, member_of
 from app.services import interview_service, notify_service, rate_card_service
 from app.services.demand_service import record_stage
 
@@ -123,7 +123,7 @@ def _mail_raised(
     owner = db.get_one(User, demand.owner_id)
     admins = _team_admins(db, account.id)
     if approval.route == ApprovalRoute.LEADERSHIP.value:
-        to = [u.email for u in db.scalars(select(User).where(member_of(account.id, Role.LEADERSHIP)))]
+        to = [u.email for u in db.scalars(select(User).where(leads_bu(account.id, demand.bu_id)))]
         who = f"Below the {account.margin_threshold:g}% cut-off: leadership decides."
     else:  # at or above the cut-off, or not priced yet: the demand owner
         to = [owner.email] if owner.active else []
@@ -239,11 +239,11 @@ def _pending(db: Session, actor: Actor, approval_id: int) -> tuple[OfferApproval
 
 
 def can_decide(actor: Actor, approval: OfferApproval, demand: Demand) -> bool:
-    """At or above the cut-off the demand's owner decides; below it, leadership."""
+    """At or above the cut-off the demand's owner decides; below it, leadership over the demand's BU."""
     if approval.decision is not None or approval.route is None:
         return False
     if approval.route == ApprovalRoute.LEADERSHIP.value:
-        return actor.role is Role.LEADERSHIP
+        return actor.role is Role.LEADERSHIP and (actor.bu_limit is None or demand.bu_id in actor.bu_limit)
     return actor.id == demand.owner_id
 
 
@@ -371,6 +371,8 @@ def board(db: Session, actor: Actor) -> Board:
     ).all()
     if actor.role is Role.DEMAND_OWNER:  # a demand owner sees the offers on their own demands only
         rows = [r for r in rows if r[1].owner_id == actor.id]
+    elif actor.bu_limit is not None:  # leadership over chosen BUs: those BUs' offers only
+        rows = [r for r in rows if r[1].bu_id in actor.bu_limit]
     b = Board([], [], [], [], [])
     for a, d, c in rows:
         item = (a, d, c)

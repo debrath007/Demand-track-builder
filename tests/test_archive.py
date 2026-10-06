@@ -57,9 +57,21 @@ def test_overview_keeps_to_the_period(client: Client, db: Session) -> None:
     wide = loss_service.overview(db, 1, today, period_for(db, 1, (today - timedelta(days=90)).isoformat()))
     assert wide.live == before.live and wide.archived == 0
     page = client.as_user("sanjay").get("/overview").text
-    assert "finished in the last 30 days" in page and "1 older finished demand not shown" in page
+    assert "Last 30 days" in page and "1 older finished demand not shown" in page
     page = client.as_user("sanjay").get(f"/overview?start={today - timedelta(days=90)}").text
-    assert "Live at any time from" in page and "Clear dates" in page
+    assert "Live at any time from" in page and 'name="start"' in page
+
+
+def test_period_quick_picks() -> None:
+    today = date(2026, 5, 20)
+    assert [key for key, _, _ in Period(today).presets] == ["recent", "quarter", "year"]
+    assert Period(today).preset == "recent"
+    assert Period(today, start=date(2026, 4, 1)).preset == "quarter"
+    assert Period(today, start=date(2026, 1, 1)).preset == "year"
+    # anything else is the user's own dates
+    assert Period(today, start=date(2026, 3, 3)).preset == "custom"
+    assert Period(today, start=date(2026, 4, 1), end=date(2026, 5, 1)).preset == "custom"
+    assert Period(date(2026, 12, 31)).presets[1][2] == date(2026, 10, 1)
 
 
 def test_administrator_sets_the_archive_days(db: Session) -> None:

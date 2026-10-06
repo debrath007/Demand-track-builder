@@ -68,6 +68,7 @@ from app.models import (
     Interview,
     StageEvent,
     User,
+    leads_bu,
     member_of,
 )
 from app.services.demand_service import record_stage
@@ -563,7 +564,9 @@ def audience(db: Session, account: Account, esc: Escalation, demand: Demand | No
     if esc.level == 2:
         if cfg.l2_inform_leadership:
             informed.append(cfg.escalation_owners.get("L2", "leadership"))
-            cc += [u.email for u in _users(db, account.id, Role.LEADERSHIP)]
+            # only the leadership who cover this demand's BU (all of it, or chosen BUs including it)
+            leaders = db.scalars(select(User).where(leads_bu(account.id, demand.bu_id if demand else None)))
+            cc += [u.email for u in leaders]
         if cfg.l2_inform_delivery_head and bu is not None and bu.delivery_head_email:
             head = cfg.escalation_owners.get("L1", "delivery head")
             informed.append(f"{head} ({bu.delivery_head_name})" if bu.delivery_head_name else head)
@@ -905,8 +908,10 @@ def listing(
     level: int | None = None,
     type_: str | None = None,
     owner_id: int | None = None,
+    bu_ids: frozenset[int] | None = None,
 ) -> list[tuple[Escalation, Demand | None]]:
-    """Escalations of the account; for a demand owner (owner_id), only those on their own demands."""
+    """Escalations of the account; for a demand owner (owner_id), only those on their own demands; for
+    leadership over chosen BUs (bu_ids), only those on demands of those BUs (sheet rows have no BU)."""
     stmt = (
         select(Escalation, Demand)
         .outerjoin(Demand, Demand.id == Escalation.demand_id)
@@ -923,5 +928,7 @@ def listing(
         stmt = stmt.where(Escalation.type == type_)
     if owner_id is not None:  # their own demands, and sheet rows that name them as the originator
         stmt = stmt.where(or_(Demand.owner_id == owner_id, Escalation.sheet_owner_id == owner_id))
-    order = (Escalation.due_at,) if status == "open" else (Escalation.resolved_at.desc(),)
+    if bu_ids is not None:
+        stmt = stmt.where(Demand.bu_id.in_(bu_ids))
+    order =(Escalation.due_at,) if status == "open" else (Escalation.resolved_at.desc(),)
     return [(e, d) for e, d in db.execute(stmt.order_by(*order, Escalation.id)).all()]

@@ -151,16 +151,19 @@ def _apply(db: Session, actor: Actor, user: User, m: UserAccount, form: UserForm
     user.email = form.email
     m.role = form.role.value
     m.level = form.level
-    m.visibility_scope = effective_scope(form.role, form.scope).value
+    scope = effective_scope(form.role, form.scope)
+    m.visibility_scope = scope.value
 
     # Business units and practices of the person's other accounts are left as they are.
     others = [b for b in user.business_units if b.account_id != actor.account_id]
-    if ALLOWED_SCOPES[form.role] == (Scope.FULL,):
-        user.business_units = others + account_bus  # locked: full account, every BU
+    if scope is Scope.FULL:
+        user.business_units = others + account_bus  # full account: every BU
     else:
         chosen = [b for b in account_bus if b.id in set(form.bu_ids)]
         if form.role is Role.DEMAND_OWNER and len(chosen) != 1:
             raise UserAccessError("A demand owner belongs to exactly one business unit.")
+        if scope is Scope.BU_READ and not chosen:
+            raise UserAccessError("Choose the business units this person sees.")
         user.business_units = others + chosen
 
     here = set(account.settings.practices)

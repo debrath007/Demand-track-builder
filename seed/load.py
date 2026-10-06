@@ -57,7 +57,7 @@ def load(db: Session, now: datetime | None = None) -> None:
 
     users: dict[str, User] = {}
     for key, name, email, role, level, scope, bu_names, practices, iv in data.USERS:
-        u = User(name=name, email=email, active=True)
+        u = User(name=name, email=email, phone=data.PHONES.get(key), active=True)
         u.memberships = [
             UserAccount(account_id=account.id, role=role, level=level, visibility_scope=scope, active=True)
         ]
@@ -193,7 +193,7 @@ def load_acme(db: Session, discover_users: dict[str, User], now: datetime) -> No
 
     users: dict[str, User] = {}
     for key, name, email, role, level, scope, bu_names, practices, iv in acme.USERS:
-        u = discover_users.get(key) or User(name=name, email=email, active=True)
+        u = discover_users.get(key) or User(name=name, email=email, phone=acme.PHONES.get(key), active=True)
         u.memberships.append(
             UserAccount(account_id=account.id, role=role, level=level, visibility_scope=scope, active=True)
         )
